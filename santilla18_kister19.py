@@ -1,7 +1,7 @@
 # -*- coding: latin-1 -*-
 import random
 import sys
-
+import os
 sys.path.append("..")  # so other modules can be found in parent dir
 from Player import *
 from Constants import *
@@ -45,6 +45,14 @@ class AIPlayer(Player):
             self.enemyID = PLAYER_TWO
         else:
             self.enemyID = PLAYER_ONE
+        for file in os.listdir(cur_dir):
+            if file.endswith(".txt"):
+                self.readFile()
+            else:
+
+        self.discountFact = 0.99
+        self.learningRate = 0.99
+
 
     ##
     # getPlacement
@@ -305,6 +313,8 @@ class AIPlayer(Player):
     #
     def registerWin(self, hasWon):
         # method templaste, not implemented
+        # Each time your agent completes a game, save your current state utilities to a file.
+        # self.writeFile()
         pass
 
     ##
@@ -420,3 +430,55 @@ class AIPlayer(Player):
             pathCost += cellCost
 
         return pathCost
+
+    ###
+    # writeFile
+    #
+    # Description:
+    #
+    ###
+    def writeFile(self):
+        f = open('santilla18_kister19.txt', 'w')
+        print >> f #write utility states to file using loop
+        f.close()
+
+    ###
+    # readFile
+    #
+    # Description:
+    #
+    ###
+    def readFile(self):
+        f = open('santilla18_kister19.txt', 'r')
+        for line in f:
+            #put contents of file back in to state utility list
+        f.close()
+    ##
+    #hasWon(int)
+    #Description: Determines whether the game has ended in victory for the given player.
+    #
+    #Parameters:
+    #   playerId - The ID of the player being checked for winning (int)
+    #
+    #Returns: True if the player with playerId has won the game.
+    ##
+    def hasWon(self, playerId):
+        opponentId = (playerId + 1) % 2
+
+        if ((self.state.phase == PLAY_PHASE) and
+        ((self.state.inventories[opponentId].getQueen() == None) or
+        (self.state.inventories[opponentId].getAnthill().captureHealth <= 0) or
+        (self.state.inventories[playerId].foodCount >= FOOD_GOAL) or
+        (self.state.inventories[opponentId].foodCount == 0 and
+            len(self.state.inventories[opponentId].ants) == 1))):
+            return True
+        else:
+            return False
+
+    def reward(self, currentState):
+        if self.hasWon(currentState, self.playerId):
+            return 1
+        elif self.hasWon(currentState, (self.playerId+1)%2):
+            return 0
+        else
+            return -0.01

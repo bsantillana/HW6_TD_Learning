@@ -52,6 +52,7 @@ class AIPlayer(Player):
 
         self.discountFact = 0.99
         self.learningRate = 0.99
+        self.consildatedStates = []
 
 
     ##
@@ -482,3 +483,60 @@ class AIPlayer(Player):
             return 0
         else
             return -0.01
+
+    def consolidatState(self, currentState):
+        newState = Consolidation(self, currentState)
+        isSame = False
+        for st in self.consolidatedState:
+            if st.utility != newState.utility:
+                isSame = True
+                break
+            if st.myNumFood != newState.myNumFood:
+                isSame = True
+                break
+            if st.enemyNumFood != newState.enemyNumFood:
+                isSame = True
+                break
+            if st.myNonWorkers != newState.myNonWorkers:
+                isSame = True
+                break
+            if st.enemyNonWorkers != newState.enemyNonWorkers:
+                isSame = True
+                break
+            for dist in range(0, len(st.distToTunnel)):
+                if st.distToTunnel[dist] != newState.distToTunnel[dist]:
+                    isSame = True
+                    break
+            for dist in range(0, len(st.enemyDistToQueen)):
+                if st.enemyDistToQueen[dist] != newState.enemyDistToQueen[dist]:
+                    isSame = True
+                    break
+        if isSame == False:
+            self.consolidatedState.append(newState)
+
+
+##
+# AIPlayer
+# Description: The responsbility of this class is to interact with the game by
+# deciding a valid move based on a given game state. This class has methods that
+# will be implemented by students in Dr. Nuxoll's AI course.
+#
+# Variables:
+#   playerId - The id of the player.
+##
+class Consolidation(Player):
+    # __init__
+    # Description: Creates a new Player
+    #
+    # Parameters:
+    #   inputPlayerId - The id to give the new player (int)
+    ##
+    def __init__(self, currentState):
+
+        self.Utility = 0
+        self.myNumFood = 0
+        self.enemyNumFood = 0
+        self.myNonWorkers = 0
+        self.enemyNonWorkers = 0
+        self.distToTunnel = []
+        self.enemyDistToQueen = []

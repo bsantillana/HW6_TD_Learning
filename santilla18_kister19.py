@@ -8,6 +8,7 @@ from Constants import *
 from Construction import CONSTR_STATS
 from Ant import UNIT_STATS
 from Move import Move
+from math import sqrt
 from GameState import addCoords
 from AIPlayerUtils import *
 
@@ -29,7 +30,7 @@ class AIPlayer(Player):
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer, self).__init__(inputPlayerId, "King Leonidas")
+        super(AIPlayer, self).__init__(inputPlayerId, "HW6")
 
         # Tweaking these should definitely alter the success of the AI
         self.NUM_DESIRED_DRONES = 1
@@ -45,14 +46,14 @@ class AIPlayer(Player):
             self.enemyID = PLAYER_TWO
         else:
             self.enemyID = PLAYER_ONE
-        for file in os.listdir(cur_dir):
-            if file.endswith(".txt"):
-                self.readFile()
-            else:
+        #for file in os.listdir(cur_dir):
+        #    if file.endswith(".txt"):
+        #        self.readFile()
+
 
         self.discountFact = 0.99
         self.learningRate = 0.99
-        self.consildatedStates = []
+        self.consolidatedState = []
 
 
     ##
@@ -138,6 +139,9 @@ class AIPlayer(Player):
     # Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
+
+        self.consolidatState(currentState)
+
         if (self.myTunnel == None):
             self.myTunnel = getConstrList(currentState, currentState.whoseTurn, (TUNNEL,))[0]
 
@@ -316,6 +320,8 @@ class AIPlayer(Player):
         # method templaste, not implemented
         # Each time your agent completes a game, save your current state utilities to a file.
         # self.writeFile()
+        for i in self.consolidatedState:
+            print i.myNumFood
         pass
 
     ##
@@ -451,8 +457,8 @@ class AIPlayer(Player):
     ###
     def readFile(self):
         f = open('santilla18_kister19.txt', 'r')
-        for line in f:
-            #put contents of file back in to state utility list
+        #for line in f:
+            # put contents of file back in to state utility list
         f.close()
     ##
     #hasWon(int)
@@ -481,14 +487,14 @@ class AIPlayer(Player):
             return 1
         elif self.hasWon(currentState, (self.playerId+1)%2):
             return 0
-        else
+        else:
             return -0.01
 
     def consolidatState(self, currentState):
-        newState = Consolidation(self, currentState)
+        newState = Consolidation(currentState)
         isSame = False
         for st in self.consolidatedState:
-            if st.utility != newState.utility:
+            if st.Utility != newState.Utility:
                 isSame = True
                 break
             if st.myNumFood != newState.myNumFood:
@@ -534,9 +540,89 @@ class Consolidation(Player):
     def __init__(self, currentState):
 
         self.Utility = 0
-        self.myNumFood = 0
-        self.enemyNumFood = 0
-        self.myNonWorkers = 0
-        self.enemyNonWorkers = 0
+        self.myTunnel = None
+
+        if (self.myTunnel == None):
+            self.myTunnel = getConstrList(currentState, currentState.whoseTurn, (TUNNEL,))[0]
+
+        for inv in currentState.inventories:
+            if inv.player == currentState.whoseTurn:
+                inventory = inv
+            else:
+                enemyInv = inv
+
+        antHill = inventory.getAnthill()
+
+        # Distinguish our ants
+        workers = []
+        drones = []
+        soldiers = []
+        rangers = []
+        queen = []
+        for ant in inventory.ants:
+            antType = ant.type
+            workers.append(ant) if antType == WORKER else 0
+            drones.append(ant) if antType == DRONE else 0
+            soldiers.append(ant) if antType == SOLDIER else 0
+            rangers.append(ant) if antType == R_SOLDIER else 0
+            queen.append(ant) if antType == QUEEN else 0
+
+        # Distinguish enemy ants
+        enemyworkers = []
+        enemydrones = []
+        enemysoldiers = []
+        enemyrangers = []
+        enemyqueen = []
+        for ant in enemyInv.ants:
+            antType = ant.type
+            enemyworkers.append(ant) if antType == WORKER else 0
+            enemydrones.append(ant) if antType == DRONE else 0
+            enemysoldiers.append(ant) if antType == SOLDIER else 0
+            enemyrangers.append(ant) if antType == R_SOLDIER else 0
+            enemyqueen.append(ant) if antType == QUEEN else 0
+
+        # Obtain our food list and prune the food list
+        # to only contain our food
+        foodList = getConstrList(currentState, None, (FOOD,))
+        enemyFood = []
+        for food in foodList:
+            if food.coords[1] > 3:
+                enemyFood.append(food)
+
+        for food in enemyFood:
+            foodList.remove(food)
+
+        # Prune ant list to contain only our ants
+        antsToRemove = []
+        for ant in workers:
+            if ant.player != currentState.whoseTurn:
+                antsToRemove.append(ant)
+
+        for ant in antsToRemove:
+            workers.remove(ant)
+
+        self.myNumFood = len(foodList)
+        self.enemyNumFood = len(enemyFood)
+        self.myNonWorkers = len(workers)
+        self.enemyNonWorkers = len(enemyworkers)
+
         self.distToTunnel = []
         self.enemyDistToQueen = []
+
+        tunnelCoords = self.myTunnel.coords
+        for ant in inventory.ants:
+            antCoords = ant.coords
+            valuex = abs(tunnelCoords[0] - antCoords[0])
+            valuey = abs(tunnelCoords[1] - antCoords[1])
+            value = sqrt(abs(valuex - valuey))
+            self.distToTunnel.append(value)
+
+        queenCoords = inventory.getQueen().coords
+        for ant in enemysoldiers:
+            enemyCoords = ant.coords
+            valuex = abs(enemyCoords[0] - antCoords[0])
+            valuey = abs(enemyCoords[1] - antCoords[1])
+            value = sqrt(abs(valuex - valuey))
+            self.enemyDistToQueen.append(value)
+
+        print self.Utility

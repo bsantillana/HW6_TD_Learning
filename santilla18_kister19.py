@@ -11,6 +11,7 @@ from Move import Move
 from math import sqrt
 from GameState import addCoords
 from AIPlayerUtils import *
+from pprint import pprint
 
 
 ##
@@ -37,6 +38,8 @@ class AIPlayer(Player):
         self.NUM_DESIRED_WORKERS = 2
         self.MIN_DESIRED_FOOD = 2
 
+        self.testCounter = 0
+
         # We would like to know where our tunnel is
         self.myTunnel = None
 
@@ -46,14 +49,17 @@ class AIPlayer(Player):
             self.enemyID = PLAYER_TWO
         else:
             self.enemyID = PLAYER_ONE
-        #for file in os.listdir(cur_dir):
-        #    if file.endswith(".txt"):
-        #        self.readFile()
+
+        path = os.getcwd()
+        for file in os.listdir(path):
+            if file.endswith(".txt"):
+                self.readFile()
 
 
         self.discountFact = 0.99
         self.learningRate = 0.99
         self.consolidatedState = []
+        self.Utilities = []
 
 
     ##
@@ -139,7 +145,7 @@ class AIPlayer(Player):
     # Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
-
+        self.testCounter += 1
         self.consolidatState(currentState)
 
         if (self.myTunnel == None):
@@ -319,9 +325,7 @@ class AIPlayer(Player):
     def registerWin(self, hasWon):
         # method templaste, not implemented
         # Each time your agent completes a game, save your current state utilities to a file.
-        # self.writeFile()
-        for i in self.consolidatedState:
-            print i.myNumFood
+        self.writeFile()
         pass
 
     ##
@@ -445,8 +449,13 @@ class AIPlayer(Player):
     #
     ###
     def writeFile(self):
+        os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
         f = open('santilla18_kister19.txt', 'w')
-        print >> f #write utility states to file using loop
+        for i in range(0,len(self.consolidatedState)):
+            #obj = vars(self.consolidatedState[i])
+            #print >> f, obj
+            with open('santilla18_kister19.txt', 'w'):
+                pprint(vars(self.consolidatedState[i]), stream=f)
         f.close()
 
     ###
@@ -457,8 +466,10 @@ class AIPlayer(Player):
     ###
     def readFile(self):
         f = open('santilla18_kister19.txt', 'r')
-        #for line in f:
-            # put contents of file back in to state utility list
+        for line in f:
+            for i in line:
+                print i
+                break
         f.close()
     ##
     #hasWon(int)
@@ -469,16 +480,17 @@ class AIPlayer(Player):
     #
     #Returns: True if the player with playerId has won the game.
     ##
-    def hasWon(self, playerId):
+    def hasWon(self, currentState, playerId):
         opponentId = (playerId + 1) % 2
 
-        if ((self.state.phase == PLAY_PHASE) and
-        ((self.state.inventories[opponentId].getQueen() == None) or
-        (self.state.inventories[opponentId].getAnthill().captureHealth <= 0) or
-        (self.state.inventories[playerId].foodCount >= FOOD_GOAL) or
-        (self.state.inventories[opponentId].foodCount == 0 and
-            len(self.state.inventories[opponentId].ants) == 1))):
+        if ((currentState.phase == PLAY_PHASE) and
+            ((currentState.inventories[opponentId].getQueen() == None) or
+                    (currentState.inventories[opponentId].getAnthill().captureHealth <= 0) or
+                    (currentState.inventories[playerId].foodCount >= FOOD_GOAL) or
+                    (currentState.inventories[opponentId].foodCount == 0 and
+                    len(currentState.inventories[opponentId].ants) == 1))):
             return True
+
         else:
             return False
 
@@ -491,35 +503,26 @@ class AIPlayer(Player):
             return -0.01
 
     def consolidatState(self, currentState):
-        newState = Consolidation(currentState)
+        aiWon = self.hasWon(currentState,self.playerId)
+        enemyWon = self.hasWon(currentState, (self.playerId+1)%2)
+        newState = Consolidation(currentState, aiWon, enemyWon)
         isSame = False
+        ##
+        # TODO: Something in this section of code is limiting our states too much
+        ##
         for st in self.consolidatedState:
-            if st.Utility != newState.Utility:
-                isSame = True
-                break
             if st.myNumFood != newState.myNumFood:
-                isSame = True
-                break
-            if st.enemyNumFood != newState.enemyNumFood:
-                isSame = True
-                break
-            if st.myNonWorkers != newState.myNonWorkers:
-                isSame = True
-                break
-            if st.enemyNonWorkers != newState.enemyNonWorkers:
-                isSame = True
-                break
-            for dist in range(0, len(st.distToTunnel)):
-                if st.distToTunnel[dist] != newState.distToTunnel[dist]:
-                    isSame = True
-                    break
-            for dist in range(0, len(st.enemyDistToQueen)):
-                if st.enemyDistToQueen[dist] != newState.enemyDistToQueen[dist]:
-                    isSame = True
-                    break
+                if st.enemyNumFood != newState.enemyNumFood:
+                    if st.myNonWorkers != newState.myNonWorkers:
+                        if st.enemyNonWorkers != newState.enemyNonWorkers:
+                            for dist in range(0, len(st.distToTunnel)):
+                                if st.distToTunnel[dist] != newState.distToTunnel[dist]:
+                                    for dist in range(0, len(st.enemyDistToQueen)):
+                                        if st.enemyDistToQueen[dist] != newState.enemyDistToQueen[dist]:
+                                            if st.Utility != newState.Utility:
+                                                isSame = True
         if isSame == False:
             self.consolidatedState.append(newState)
-
 
 ##
 # AIPlayer
@@ -537,9 +540,15 @@ class Consolidation(Player):
     # Parameters:
     #   inputPlayerId - The id to give the new player (int)
     ##
-    def __init__(self, currentState):
+    def __init__(self, currentState, iWon, iLost):
 
-        self.Utility = 0
+        if iWon:
+            self.Utility = 1000
+        elif iLost:
+            self.Utility = -1000
+        else:
+            self.Utility = random.randint(0,100)
+
         self.myTunnel = None
 
         if (self.myTunnel == None):
@@ -601,8 +610,8 @@ class Consolidation(Player):
         for ant in antsToRemove:
             workers.remove(ant)
 
-        self.myNumFood = len(foodList)
-        self.enemyNumFood = len(enemyFood)
+        self.myNumFood = inventory.foodCount
+        self.enemyNumFood = enemyInv.foodCount
         self.myNonWorkers = len(workers)
         self.enemyNonWorkers = len(enemyworkers)
 
@@ -624,5 +633,3 @@ class Consolidation(Player):
             valuey = abs(enemyCoords[1] - antCoords[1])
             value = sqrt(abs(valuex - valuey))
             self.enemyDistToQueen.append(value)
-
-        print self.Utility

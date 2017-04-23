@@ -452,8 +452,9 @@ class AIPlayer(Player):
     #
     ###
     def writeFile(self):
-        os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
-        f = open('santilla18_kister19.p', 'w')
+        #os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
+        os.chdir(r"/Users/briahnasantillana/Desktop/Artificial Intelligence/Antics 5/AI")
+        f = open('santilla18_kister19.p', 'wb')
         pickle.dump(self.consolidatedState,f)
         self.consolidatedState = []
         f.close()
@@ -465,7 +466,7 @@ class AIPlayer(Player):
     #
     ###
     def readFile(self):
-        f = open('santilla18_kister19.p', 'r')
+        f = open('santilla18_kister19.p', 'rb')
         self.consolidatedState = pickle.load(f)
         f.close()
     ##

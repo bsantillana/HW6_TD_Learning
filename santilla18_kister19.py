@@ -2,6 +2,8 @@
 import random
 import sys
 import os
+import pickle
+
 sys.path.append("..")  # so other modules can be found in parent dir
 from Player import *
 from Constants import *
@@ -38,6 +40,8 @@ class AIPlayer(Player):
         self.NUM_DESIRED_WORKERS = 2
         self.MIN_DESIRED_FOOD = 2
 
+
+        self.testStates = []
         self.testCounter = 0
 
         # We would like to know where our tunnel is
@@ -52,9 +56,8 @@ class AIPlayer(Player):
 
         path = os.getcwd()
         for file in os.listdir(path):
-            if file.endswith(".txt"):
+            if file.endswith(".p"):
                 self.readFile()
-
 
         self.discountFact = 0.99
         self.learningRate = 0.99
@@ -450,12 +453,9 @@ class AIPlayer(Player):
     ###
     def writeFile(self):
         os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
-        f = open('santilla18_kister19.txt', 'w')
-        for i in range(0,len(self.consolidatedState)):
-            #obj = vars(self.consolidatedState[i])
-            #print >> f, obj
-            with open('santilla18_kister19.txt', 'w'):
-                pprint(vars(self.consolidatedState[i]), stream=f)
+        f = open('santilla18_kister19.p', 'w')
+        pickle.dump(self.consolidatedState,f)
+        self.consolidatedState = []
         f.close()
 
     ###
@@ -465,11 +465,8 @@ class AIPlayer(Player):
     #
     ###
     def readFile(self):
-        f = open('santilla18_kister19.txt', 'r')
-        for line in f:
-            for i in line:
-                print i
-                break
+        f = open('santilla18_kister19.p', 'r')
+        self.consolidatedState = pickle.load(f)
         f.close()
     ##
     #hasWon(int)
@@ -523,6 +520,13 @@ class AIPlayer(Player):
                                                 isSame = True
         if isSame == False:
             self.consolidatedState.append(newState)
+            self.testStates.append(newState)
+
+
+    def tdLearning(self,cs,action):
+        obj = Consolidation(cs,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
+        for i in self.consolidatedState:
+            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*(obj.Utility)-i.Utility)
 
 ##
 # AIPlayer

@@ -60,7 +60,7 @@ class AIPlayer(Player):
                 self.readFile()
 
         self.discountFact = 0.99
-        self.learningRate = 0.99
+        self.learningRate = 0.1
         self.consolidatedState = []
         self.Utilities = []
 
@@ -291,6 +291,7 @@ class AIPlayer(Player):
 
                 # Move our ant
                 path = createPathToward(currentState, ant.coords, antDest, UNIT_STATS[WORKER][MOVEMENT])
+                self.tdLearning(currentState)
                 return Move(MOVE_ANT, path, None)
 
     ##
@@ -456,7 +457,6 @@ class AIPlayer(Player):
         os.chdir(r"/Users/briahnasantillana/Desktop/Artificial Intelligence/Antics 5/AI")
         f = open('santilla18_kister19.p', 'wb')
         pickle.dump(self.consolidatedState,f)
-        self.consolidatedState = []
         f.close()
 
     ###
@@ -467,6 +467,7 @@ class AIPlayer(Player):
     ###
     def readFile(self):
         f = open('santilla18_kister19.p', 'rb')
+        self.consolidatedState = []
         self.consolidatedState = pickle.load(f)
         f.close()
     ##
@@ -524,7 +525,7 @@ class AIPlayer(Player):
             self.testStates.append(newState)
 
 
-    def tdLearning(self,cs,action):
+    def tdLearning(self,cs):
         obj = Consolidation(cs,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
         for i in self.consolidatedState:
             i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*(obj.Utility)-i.Utility)

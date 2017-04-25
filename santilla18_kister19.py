@@ -15,6 +15,7 @@ from GameState import addCoords
 from AIPlayerUtils import *
 from pprint import pprint
 
+
 ##
 # AIPlayer
 # Description: The responsbility of this class is to interact with the game by
@@ -32,16 +33,12 @@ class AIPlayer(Player):
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer, self).__init__(inputPlayerId, "HW6")
+        super(AIPlayer, self).__init__(inputPlayerId, "HW 6 Agent")
 
         # Tweaking these should definitely alter the success of the AI
         self.NUM_DESIRED_DRONES = 1
         self.NUM_DESIRED_WORKERS = 2
         self.MIN_DESIRED_FOOD = 2
-
-
-        self.testStates = []
-        self.testCounter = 0
 
         # We would like to know where our tunnel is
         self.myTunnel = None
@@ -53,19 +50,25 @@ class AIPlayer(Player):
         else:
             self.enemyID = PLAYER_ONE
 
+        # Our list of consolidated state objects
         self.consolidatedState = []
 
+        ##
+        # File I/O code. This searches the parent directory to find a pickle file which we will use to
+        # import the states and their utilities
+        #   NOTE: You may have to change the chdir call to a more specific file path if it doesn't work
+        ##
+        os.chdir('..')
         path = os.getcwd()
         for file in os.listdir(path):
             if file.endswith(".p"):
                 self.readFile()
-
+        # Setting the discount factor variable
         self.discountFact = 0.99
+        # Setting the learning rate variable
         self.learningRate = 0.1
+        # Creating the list of utilities to use when picking an action
         self.Utilities = []
-
-        #print self.consolidatedState
-
 
     ##
     # getPlacement
@@ -150,150 +153,43 @@ class AIPlayer(Player):
     # Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
-        self.consolidatState(currentState)
-        if (self.myTunnel == None):
-            self.myTunnel = getConstrList(currentState, currentState.whoseTurn, (TUNNEL,))[0]
-
-        inventory = getCurrPlayerInventory(currentState)
-        antHill = inventory.getAnthill()
-
-        # Distinguish our ants
-        workers = []
-        drones = []
-        soldiers = []
-        rangers = []
-        queen = []
-        for ant in inventory.ants:
-            antType = ant.type
-            workers.append(ant) if antType == WORKER else 0
-            drones.append(ant) if antType == DRONE else 0
-            soldiers.append(ant) if antType == SOLDIER else 0
-            rangers.append(ant) if antType == R_SOLDIER else 0
-            queen.append(ant) if antType == QUEEN else 0
-
-        # Obtain our food list and prune the food list
-        # to only contain our food
-        foodList = getConstrList(currentState, None, (FOOD,))
-        enemyFood = []
-        for food in foodList:
-            if food.coords[1] > 3:
-                enemyFood.append(food)
-
-        for food in enemyFood:
-            foodList.remove(food)
-
-        # Prune ant list to contain only our ants
-        antsToRemove = []
-        for ant in workers:
-            if ant.player != currentState.whoseTurn:
-                antsToRemove.append(ant)
-
-        for ant in antsToRemove:
-            workers.remove(ant)
-
-        # We always want to keep the queen off of it's anthill so we can build more ants
-        if queen[0].coords == antHill.coords:
-            queenPossibleMoves = listAllMovementPaths(currentState, queen[0].coords, UNIT_STATS[QUEEN][MOVEMENT])
-            if len(queenPossibleMoves) != 0:
-                # Only move the queen to a space that isn't occupied by food
-                for move in queenPossibleMoves:
-                    if getConstrAt(currentState, move) == None:
-                        return Move(MOVE_ANT, move, None)
-
-        # If we have moved all of our worker ants then we are done
-        antsMoved = False
-        for ant in workers:
-            if not ant.hasMoved:
-                antsMoved = True
-
-        if not antsMoved:
-            return Move(END, None, None)
-
-        # We need to build workers and drones, but always keep reserve food unless we have no workers
-        if inventory.foodCount > self.MIN_DESIRED_FOOD or len(workers) == 0:
-            # Workers
-            if inventory.foodCount > 1 and len(workers) < self.NUM_DESIRED_WORKERS:
-                if getAntAt(currentState, antHill.coords) is None:
-                    return Move(BUILD, [antHill.coords], WORKER)
-
-            # Drones
-            if inventory.foodCount > 2 and len(drones) < self.NUM_DESIRED_DRONES:
-                if getAntAt(currentState, antHill.coords) is None:
-                    return Move(BUILD, [antHill.coords], DRONE)
-
-        # Send all available drones on a path towards the enemy food
-        for ant in drones:
-            if ant.hasMoved:  # if this ant has moved, he's done
-                continue
-
-            # If our drone is already on some food, then it doesn't need to move
-            antIsOnFood = False
-            for food in enemyFood:
-                if food.coords == ant.coords:
-                    antIsOnFood = True
-
-            if antIsOnFood:
-                continue
-
-
-            else:
-
-                # Find the closest food to this ant that isn't already occupied by one of our drones
-                closestFood = enemyFood[0]
-                for food in enemyFood:
-
-                    stepsToClosestFood = stepsToReach(currentState, ant.coords, closestFood.coords)
-                    stepsToThisFood = stepsToReach(currentState, ant.coords, food.coords)
-                    antAtFood = getAntAt(currentState, food.coords)
-
-                    if antAtFood is not None:
-                        continue
-
-                    if stepsToThisFood < stepsToClosestFood or antAtFood is None:
-                        # Don't try to go to a food that another one of our drones is at
-                        if getAntAt(currentState, food.coords) not in drones:
-                            closestFood = food
-
-                pathToFood = createPathToward(currentState, ant.coords, closestFood.coords,
-                                              UNIT_STATS[WORKER][MOVEMENT])
-
-                # If an ant is in our way and can be moved, move it first
-                antDest = closestFood.coords
-                moveAnt = self.moveAntInPath(currentState, ant, antDest, ant.type)
-                if moveAnt is not None:
-                    return moveAnt
-
-                return Move(MOVE_ANT, pathToFood, None)
-
-        # After moving drones, we want to move our workers
-        for ant in workers:
-            if ant.hasMoved:
-                continue
-            else:
-                # If the ant is not carrying anything, send it towards some food
-                # Otherwise, send it home
-                if not ant.carrying:
-                    closestFood = foodList[0]
-                    for food in foodList:
-                        if stepsToReach(currentState, ant.coords, food.coords) < stepsToReach(currentState, ant.coords,
-                                                                                              closestFood.coords):
-                            closestFood = food
-
-                    antDest = closestFood.coords
-
+        # Creating a list of actions
+        actions = []
+        # Adding all of the possible moves to the actions list
+        actions = listAllLegalMoves(currentState)
+        # Creating a list of the next states we can be in
+        nextStates = []
+        # Removing the build moves from the actions list as we don't want to build any anys
+        for i in actions:
+            if type(i) == BUILD:
+                actions.remove(i)
+        # Getting the next states based on the actions we can take
+        for i in actions:
+            nextStates.append(getNextState(currentState, i))
+        # Creating a list to put the consolidated states in
+        nextConsolidatedStates = []
+        # Adding the consolidated states to the list
+        for i in nextStates:
+            nextConsolidatedStates.append(self.consolidatState(i))
+        # Creating a list of utilities
+        utilityList = []
+        # Getting the utilities of the states we can enter based on the utilities we have learned
+        for i in range(0, len(nextConsolidatedStates)):
+            for j in self.consolidatedState:
+                if dir(j) == dir(nextConsolidatedStates[i]):
+                    utilityList.append(j.Utility)
                 else:
-                    antDest = self.myTunnel.coords
-
-                # If there are ants in our path, move them if we can
-                moveAnt = self.moveAntInPath(currentState, ant, antDest, ant.type)
-                if moveAnt is not None:
-                    return moveAnt
-
-                # Move our ant
-                path = createPathToward(currentState, ant.coords, antDest, UNIT_STATS[WORKER][MOVEMENT])
-                nextState = getNextState(currentState, Move(MOVE_ANT, path, None))
-                self.tdLearning(currentState, nextState)
-                return Move(MOVE_ANT, path, None)
+                    utilityList.append(-10)
+        # Setting the max utility we've seen already to a very low number
+        maxUtil = -100000
+        maxIndex = 0
+        # Search through the possible states and pick the one that has the highest utility and get its index in the list
+        for i in range(0, len(utilityList)):
+            if utilityList[i] > maxUtil:
+                maxUtil = utilityList[i]
+                maxIndex = i
+        # Choose the action that will lead us to the state with the highest utility
+        return actions[maxIndex]
 
 
 
@@ -332,7 +228,9 @@ class AIPlayer(Player):
     def registerWin(self, hasWon):
         # method templaste, not implemented
         # Each time your agent completes a game, save your current state utilities to a file.
-        self.writeFile()
+
+        # This was used to write to the pickle file after every game
+        #self.writeFile()
         pass
 
     ##
@@ -452,35 +350,46 @@ class AIPlayer(Player):
     ###
     # writeFile
     #
-    # Description:
+    # Description: Takes the objects from our consolidated states and writes them to a pickle file
     #
+    # Parameters:
+    #   self - the object that has called this function
     ###
     def writeFile(self):
-        os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
-        #os.chdir(r"/Users/briahnasantillana/Desktop/Artificial Intelligence/Antics 5/AI")
+        # Opening the file
         f = open('santilla18_kister19.p', 'wb')
+        # Writing the list of objects to the output file
         pickle.dump(self.consolidatedState,f)
+        # Closing the file
         f.close()
 
     ###
     # readFile
     #
-    # Description:
+    # Description: Takes the objects from a pickle file and stores them into our consolidated states list
+    #
+    # Parameters:
+    #   self - the object that has called this function
     #
     ###
     def readFile(self):
+        # Opening the file
         f = open('santilla18_kister19.p', 'rb')
+        # Retrieving the data from the file and putting it into our consolidated states list
         self.consolidatedState = pickle.load(f)
+        # Printing the states to the terminal for the user to see them
         print self.consolidatedState
+        # Closing the file
         f.close()
     ##
-    #hasWon(int)
-    #Description: Determines whether the game has ended in victory for the given player.
+    # hasWon(int)
+    # Description: Determines whether the game has ended in victory for the given player.
     #
-    #Parameters:
+    # Parameters:
     #   playerId - The ID of the player being checked for winning (int)
+    #   currentState - The current state of the game
     #
-    #Returns: True if the player with playerId has won the game.
+    # Returns: True if the player with playerId has won the game.
     ##
     def hasWon(self, currentState, playerId):
         opponentId = (playerId + 1) % 2
@@ -496,95 +405,74 @@ class AIPlayer(Player):
         else:
             return False
 
+    ##
+    # reward(float)
+    # Description: Takes in a state and generates the reward for that given state.
+    #
+    # Parameters:
+    #   currentState - The current state of the game
+    #
+    # Returns: The reward for the given state
+    ##
     def reward(self, currentState):
+        # If we have won, return a 1
         if self.hasWon(currentState, self.playerId):
             return 1
+        # If we have lost, return a 0
         elif self.hasWon(currentState, (self.playerId+1)%2):
             return 0
+        # If we haven't won or lost, return -0.01
         else:
-            return -0.03
+            return -0.01
 
+    ##
+    # consolidatState
+    # Description: Takes a game state and returns a consolidated version of it.
+    #
+    # Parameters:
+    #   currentState - The current state of the game
+    ##
     def consolidatState(self, currentState):
+        # Getting if we have won/lost
         aiWon = self.hasWon(currentState,self.playerId)
         enemyWon = self.hasWon(currentState, (self.playerId+1)%2)
+        # Creating a consolidated version of the current state
         newState = Consolidation(currentState, aiWon, enemyWon)
-        #for i in self.consolidatedState:
-            #if dir(newState) != dir(i):
+        # Appending this state to our list of consolidated states
         self.consolidatedState.append(newState)
 
-
+    ##
+    # tdLearning
+    # Description: Performs the TD Learning algorithm on the set of consolidated states we have
+    #
+    # Parameters:
+    #   cs - The current state of the game
+    #   nextState - The next state of the game we are going to be in
+    ##
     def tdLearning(self,cs,nextState):
+        # Creating a consolidated object out of the next state
         obj = Consolidation(nextState,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
-        utility = self.getUtility(nextState)
+        # Getting the utility
+        utility = obj.Utility
+        # Searching through the list of states to see if we already have a utility for this state. If so use that utility
         for i in self.consolidatedState:
             if dir(obj) == dir(i):
                 utility = i.Utility
+        # Updating all of the previous states based on the TD Learning algorithm
         for i in self.consolidatedState:
-            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*(utility)-i.Utility)
+            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*((utility)-i.Utility))
 
-    def getUtility(self, currentState):
-        # If our agent has won, return a utility of 1.0
-        if self.hasWon(currentState, self.playerId):
-            return 1.0
-        # If our agent has lost, return a utility of 0
-        elif self.hasWon(currentState, (self.playerId + 1) % 2):
-            return 0.0
-        # Getting our inventory and our enemy's inventory
-        for inv in currentState.inventories:
-            if inv.player == currentState.whoseTurn:
-                    ourInv = inv
-            else:
-                enemyInv = inv
-
-        utility = 0
-        # The code below creates a utility value based on the amount of food our agent has in their inventory
-        # Range of 0 to 60
-        utility += float(ourInv.foodCount) * float(5)
-
-        # If our agent has less than three ants this is a bad utility, if our agent has 3 to 5 ants this is a good
-        # utility, and if our agent over 5 ants this is a medium utility   numAnts = len(ourInv.ants)
-        # Range 0 to 40
-        numAnts = len(ourInv.ants)
-        if numAnts == 2:
-            utility += 5
-        if numAnts == 3:
-            utility += 20
-        if numAnts == 4:
-            utility += 40
-        if numAnts > 4:
-            utility += 10
-
-        # The code below creates a utility value based on the number of ants the enemy has
-        # If the enemy has more than 4 ants this is a bad utility and if the enemy has less it is a good utility
-        # Range 0 to 40
-        enemyNumAnts = len(enemyInv.ants)
-        if enemyNumAnts == 1:
-            utility += 40
-        if enemyNumAnts == 2:
-            utility += 30
-        if enemyNumAnts == 3:
-            utility += 20
-        if enemyNumAnts == 4:
-            utility += 10
-
-        # If a worker is carrying food this is good
-        for worker in getAntList(currentState, self.playerId, (WORKER,)):
-            if worker.carrying:
-                utility += 4
-
-        # Utility Range from 0 to 166
-        utility = float(utility / 166.0) + 0.03
-
-        return utility
 
 ##
-# AIPlayer
-# Description: The responsbility of this class is to interact with the game by
-# deciding a valid move based on a given game state. This class has methods that
-# will be implemented by students in Dr. Nuxoll's AI course.
+# Consolidation
+# Description: This class contains some elements of an Antics state. It contains what we have
+# deemed the most important parts of the state to use to generate an utility
+#
 #
 # Variables:
-#   playerId - The id of the player.
+#   currentState - The current state to be consolidated
+#   iWon - A boolean variable telling us if we have won
+#   iLost - A boolean variable telling us if we have lost
 ##
 class Consolidation(Player):
     # __init__
@@ -594,14 +482,19 @@ class Consolidation(Player):
     #   inputPlayerId - The id to give the new player (int)
     ##
     def __init__(self, currentState, iWon, iLost):
-
+        # If I have won this is a good utility, so set it to be a large number
         if iWon:
             self.Utility = 1000
+        # If I have lost this is a bad utility, so set it to be a large negative number
         elif iLost:
             self.Utility = -1000
+        # Otherwise set my utility to a random number
         else:
-            self.Utility = random.randint(0,999)
+            self.Utility = random.randint(0,100)
 
+        ##
+        # The following code gathers information about the state to use to create the variables for the class
+        ##
         self.myTunnel = None
 
         if (self.myTunnel == None):
@@ -663,18 +556,20 @@ class Consolidation(Player):
         for ant in antsToRemove:
             workers.remove(ant)
 
+
+        ##
+        # Setting the class variables using the information from the state gathered above
+        #
         self.myNumFood = inventory.foodCount
         self.enemyNumFood = enemyInv.foodCount
-        self.myWorkers = len(workers)
-        self.enemyWorkers = len(enemyworkers)
-        self.myNonWorker = len(inventory.ants) - len(workers)
-        self.enemyNonWorkers = len(inventory.ants) - len(enemyworkers)
-
-
+        self.myNonWorkers = len(workers)
+        self.enemyNonWorkers = len(enemyworkers)
         self.distToTunnel = []
         self.enemyDistToQueen = []
 
-
+        ##
+        # Getting the information to add to the distance to tunnel and distance to queen lists
+        ##
         tunnelCoords = self.myTunnel.coords
         for ant in inventory.ants:
             antCoords = ant.coords
@@ -690,4 +585,3 @@ class Consolidation(Player):
             valuey = abs(enemyCoords[1] - antCoords[1])
             value = sqrt(abs(valuex - valuey))
             self.enemyDistToQueen.append(value)
-

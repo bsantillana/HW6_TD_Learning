@@ -15,7 +15,6 @@ from GameState import addCoords
 from AIPlayerUtils import *
 from pprint import pprint
 
-
 ##
 # AIPlayer
 # Description: The responsbility of this class is to interact with the game by

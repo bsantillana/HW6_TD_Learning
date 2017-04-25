@@ -54,6 +54,8 @@ class AIPlayer(Player):
         else:
             self.enemyID = PLAYER_ONE
 
+        self.consolidatedState = []
+
         path = os.getcwd()
         for file in os.listdir(path):
             if file.endswith(".p"):
@@ -61,8 +63,9 @@ class AIPlayer(Player):
 
         self.discountFact = 0.99
         self.learningRate = 0.1
-        self.consolidatedState = []
         self.Utilities = []
+
+        #print self.consolidatedState
 
 
     ##
@@ -148,9 +151,7 @@ class AIPlayer(Player):
     # Return: Move(moveType [int], coordList [list of 2-tuples of ints], buildType [int]
     ##
     def getMove(self, currentState):
-        self.testCounter += 1
-        #self.consolidatState(currentState)
-
+        self.consolidatState(currentState)
         if (self.myTunnel == None):
             self.myTunnel = getConstrList(currentState, currentState.whoseTurn, (TUNNEL,))[0]
 
@@ -294,6 +295,8 @@ class AIPlayer(Player):
                 nextState = getNextState(currentState, Move(MOVE_ANT, path, None))
                 self.tdLearning(currentState, nextState)
                 return Move(MOVE_ANT, path, None)
+
+
 
     ##
     # getAttack
@@ -454,8 +457,8 @@ class AIPlayer(Player):
     #
     ###
     def writeFile(self):
-        #os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
-        os.chdir(r"/Users/briahnasantillana/Desktop/Artificial Intelligence/Antics 5/AI")
+        os.chdir(r"C:\Users\nakis\Documents\School Year 2016-2017\CS 421\Antics\AI")
+        #os.chdir(r"/Users/briahnasantillana/Desktop/Artificial Intelligence/Antics 5/AI")
         f = open('santilla18_kister19.p', 'wb')
         pickle.dump(self.consolidatedState,f)
         f.close()
@@ -468,8 +471,8 @@ class AIPlayer(Player):
     ###
     def readFile(self):
         f = open('santilla18_kister19.p', 'rb')
-        self.consolidatedState = []
         self.consolidatedState = pickle.load(f)
+        print self.consolidatedState
         f.close()
     ##
     #hasWon(int)
@@ -500,29 +503,25 @@ class AIPlayer(Player):
         elif self.hasWon(currentState, (self.playerId+1)%2):
             return 0
         else:
-            return -0.01
+            return -0.03
 
     def consolidatState(self, currentState):
         aiWon = self.hasWon(currentState,self.playerId)
         enemyWon = self.hasWon(currentState, (self.playerId+1)%2)
         newState = Consolidation(currentState, aiWon, enemyWon)
-        isSame = False
-        for st in self.consolidatedState:
-            if dir(newState) == dir(st):
-                isSame = True
-        if isSame == False:
-            self.consolidatedState.append(newState)
-            self.testStates.append(newState)
+        #for i in self.consolidatedState:
+            #if dir(newState) != dir(i):
+        self.consolidatedState.append(newState)
 
 
     def tdLearning(self,cs,nextState):
         obj = Consolidation(nextState,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
-        utility = obj.Utility
+        utility = self.getUtility(nextState)
         for i in self.consolidatedState:
             if dir(obj) == dir(i):
                 utility = i.Utility
         for i in self.consolidatedState:
-            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*((utility)-i.Utility))
+            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*(utility)-i.Utility)
 
     def getUtility(self, currentState):
         # If our agent has won, return a utility of 1.0
@@ -602,7 +601,7 @@ class Consolidation(Player):
         elif iLost:
             self.Utility = -1000
         else:
-            self.Utility = random.randint(0,100)
+            self.Utility = random.randint(0,999)
 
         self.myTunnel = None
 
@@ -667,11 +666,15 @@ class Consolidation(Player):
 
         self.myNumFood = inventory.foodCount
         self.enemyNumFood = enemyInv.foodCount
-        self.myNonWorkers = len(workers)
-        self.enemyNonWorkers = len(enemyworkers)
+        self.myWorkers = len(workers)
+        self.enemyWorkers = len(enemyworkers)
+        self.myNonWorker = len(inventory.ants) - len(workers)
+        self.enemyNonWorkers = len(inventory.ants) - len(enemyworkers)
+
 
         self.distToTunnel = []
         self.enemyDistToQueen = []
+
 
         tunnelCoords = self.myTunnel.coords
         for ant in inventory.ants:
@@ -688,3 +691,4 @@ class Consolidation(Player):
             valuey = abs(enemyCoords[1] - antCoords[1])
             value = sqrt(abs(valuex - valuey))
             self.enemyDistToQueen.append(value)
+

@@ -149,7 +149,7 @@ class AIPlayer(Player):
     ##
     def getMove(self, currentState):
         self.testCounter += 1
-        self.consolidatState(currentState)
+        #self.consolidatState(currentState)
 
         if (self.myTunnel == None):
             self.myTunnel = getConstrList(currentState, currentState.whoseTurn, (TUNNEL,))[0]
@@ -291,7 +291,8 @@ class AIPlayer(Player):
 
                 # Move our ant
                 path = createPathToward(currentState, ant.coords, antDest, UNIT_STATS[WORKER][MOVEMENT])
-                self.tdLearning(currentState)
+                nextState = getNextState(currentState, Move(MOVE_ANT, path, None))
+                self.tdLearning(currentState, nextState)
                 return Move(MOVE_ANT, path, None)
 
     ##
@@ -506,29 +507,77 @@ class AIPlayer(Player):
         enemyWon = self.hasWon(currentState, (self.playerId+1)%2)
         newState = Consolidation(currentState, aiWon, enemyWon)
         isSame = False
-        ##
-        # TODO: Something in this section of code is limiting our states too much
-        ##
         for st in self.consolidatedState:
-            if st.myNumFood != newState.myNumFood:
-                if st.enemyNumFood != newState.enemyNumFood:
-                    if st.myNonWorkers != newState.myNonWorkers:
-                        if st.enemyNonWorkers != newState.enemyNonWorkers:
-                            for dist in range(0, len(st.distToTunnel)):
-                                if st.distToTunnel[dist] != newState.distToTunnel[dist]:
-                                    for dist in range(0, len(st.enemyDistToQueen)):
-                                        if st.enemyDistToQueen[dist] != newState.enemyDistToQueen[dist]:
-                                            if st.Utility != newState.Utility:
-                                                isSame = True
+            if dir(newState) == dir(st):
+                isSame = True
         if isSame == False:
             self.consolidatedState.append(newState)
             self.testStates.append(newState)
 
 
-    def tdLearning(self,cs):
-        obj = Consolidation(cs,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
+    def tdLearning(self,cs,nextState):
+        obj = Consolidation(nextState,self.hasWon(cs,self.playerId),self.hasWon(cs, (self.playerId+1)%2))
+        utility = obj.Utility
         for i in self.consolidatedState:
-            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*(obj.Utility)-i.Utility)
+            if dir(obj) == dir(i):
+                utility = i.Utility
+        for i in self.consolidatedState:
+            i.Utility = i.Utility + self.learningRate*(self.reward(cs)+self.discountFact*((utility)-i.Utility))
+
+    def getUtility(self, currentState):
+        # If our agent has won, return a utility of 1.0
+        if self.hasWon(currentState, self.playerId):
+            return 1.0
+        # If our agent has lost, return a utility of 0
+        elif self.hasWon(currentState, (self.playerId + 1) % 2):
+            return 0.0
+        # Getting our inventory and our enemy's inventory
+        for inv in currentState.inventories:
+            if inv.player == currentState.whoseTurn:
+                    ourInv = inv
+            else:
+                enemyInv = inv
+
+        utility = 0
+        # The code below creates a utility value based on the amount of food our agent has in their inventory
+        # Range of 0 to 60
+        utility += float(ourInv.foodCount) * float(5)
+
+        # If our agent has less than three ants this is a bad utility, if our agent has 3 to 5 ants this is a good
+        # utility, and if our agent over 5 ants this is a medium utility   numAnts = len(ourInv.ants)
+        # Range 0 to 40
+        numAnts = len(ourInv.ants)
+        if numAnts == 2:
+            utility += 5
+        if numAnts == 3:
+            utility += 20
+        if numAnts == 4:
+            utility += 40
+        if numAnts > 4:
+            utility += 10
+
+        # The code below creates a utility value based on the number of ants the enemy has
+        # If the enemy has more than 4 ants this is a bad utility and if the enemy has less it is a good utility
+        # Range 0 to 40
+        enemyNumAnts = len(enemyInv.ants)
+        if enemyNumAnts == 1:
+            utility += 40
+        if enemyNumAnts == 2:
+            utility += 30
+        if enemyNumAnts == 3:
+            utility += 20
+        if enemyNumAnts == 4:
+            utility += 10
+
+        # If a worker is carrying food this is good
+        for worker in getAntList(currentState, self.playerId, (WORKER,)):
+            if worker.carrying:
+                utility += 4
+
+        # Utility Range from 0 to 166
+        utility = float(utility / 166.0) + 0.03
+
+        return utility
 
 ##
 # AIPlayer
